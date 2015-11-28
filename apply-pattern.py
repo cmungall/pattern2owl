@@ -9,7 +9,9 @@ import yaml
 import json
 import uuid
 import csv
-
+import itertools
+import sys
+from collections import Counter
 
 def main():
 
@@ -27,6 +29,8 @@ def main():
                         help='YAML Pattern file')
     parser.add_argument('-i', '--input', type=str, required=False,
                         help='Input file for values to be filled in template')
+    parser.add_argument('-x', '--xpfiles', nargs='+', required=False,
+                        help='Input file for values to be filled in template')
     parser.add_argument('-a', '--annotate', type=bool, required=False,
                         help='Annotate each generated class with template values')
     args = parser.parse_args()
@@ -37,19 +41,32 @@ def main():
     if 'pattern_name' not in tobj:
         tobj['pattern_name'] = pattern_name
     
-    bindings_list = [{'imported': 'foo'}, {'imported': 'bar'}]
+    bindings_list = []
     if args.input:
         bindings_list = parse_bindings_list(args.input)
+    if args.xpfiles:
+        bindings_list = parse_xp_files(args.xpfiles)
     print('Prefix: : <%s>' % args.base)
     print('Prefix: IAO: <http://purl.obolibrary.org/obo/IAO_>')
     print('Prefix: DOSDP: <http://geneontology.org/foo/>')
+    print('Prefix: oio: <http://www.geneontology.org/formats/oboInOwl#>')
     print()
+    print(" ## Auto-generated")
+    print()
+    print('Ontology: <%s%s>' % (args.base, args.name))
+    if 'imports' in tobj:
+        for uri in tobj['imports']:
+            print('  Import: <%s>' % uri)
     print('AnnotationProperty: IAO:0000115')
     for v in tobj['vars']:
         print('AnnotationProperty: %s' % make_internal_annotation_property(tobj, v))
     print('AnnotationProperty: %s' % get_applies_pattern_property())
+    if 'annotations' in tobj:
+        for aobj in tobj['annotations']:
+            print('AnnotationProperty: %s' % aobj['property'])
+    
+
     ##print('AnnotationProperty: %s' % make_internal_annotation_property(tobj['pattern_name']))
-    print('Ontology: <%s%s>' % (args.base, args.name))
 
     p = tobj
     # build map of quoted entity replacements
@@ -88,13 +105,32 @@ def parse_bindings_list(fn):
     bindings_list = [row for row in input_file]
     return bindings_list
 
+## reeads tabular files and applies cross-product
+def parse_xp_files(fns):
+    lists = []
+    for fn in fns:
+        delimiter='\t'
+        if fn.endswith("csv"):
+            delimiter=','
+        input_file = csv.DictReader(open(fn), delimiter=delimiter)
+        lists.append( [row for row in input_file] )
+    bindings_list = []
+    # assume pairwise: TODO: recurse for len>2
+    for i in lists[0]:
+        for j in lists[1]:
+            m = i.copy()
+            m.update(j)
+            bindings_list.append(m)
+    return bindings_list
+
 def get_values(tobj, bindings, isLabel=False):
     lvars = tobj['vars']
     vals = []
     for v in lvars:
         varval = ""
         if isLabel:
-            varval = bindings[v+" label"]
+            k = v+" label"
+            varval = bindings[k] if k in bindings else bindings[v]
         else:
             varval = render_iri(bindings[v])
         vals.append(varval)
@@ -110,6 +146,8 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
     print("")
     var_bindings = {}
     for v in p['vars']:
+        if v not in bindings:
+            sys.stderr.write(v+" not in bindings")
         iri = bindings[v]
         var_bindings[v] = iri
         vl = v + " label"
@@ -132,20 +170,21 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
         tanns = p['annotations']
         for tobj in tanns:
             ap = tobj['property']
-            text = apply_template(tobj, bindings)
+            text = apply_template(tobj, bindings, True)
             # todo: protect against special characters
             write_annotation(ap, text, bindings)
     if 'equivalentTo' in p:
         tobj = p['equivalentTo']
-        text = apply_template(tobj, bindings)
-        cmt = text.replace("\n", "")
-        expr = replace_quoted_entities(qm, text)
-        print(' EquivalentTo: %s ## %s' % (expr,cmt))
+        expr_text = apply_template(tobj, bindings)
+        expr_cmt = apply_template(tobj, bindings,True).replace("\n", "")
+        expr_text = replace_quoted_entities(qm, expr_text)
+        print(' EquivalentTo: %s ## %s' % (expr_text,expr_cmt))
     if 'subClassOf' in p:
         tobj = p['subClassOf']
-        text = apply_template(tobj, bindings)
-        expr = replace_quoted_entities(qm, text)
-        print(' EquivalentTo: %s' % expr)
+        expr_text = apply_template(tobj, bindings)
+        expr_cmt = apply_template(tobj, bindings,True).replace("\n", "")
+        expr_text = replace_quoted_entities(qm, expr_text)
+        print(' SubClassOf: %s ## %s' % (expr_text,expr_cmt))
     if args.annotate:
         pn = p['pattern_name']
     

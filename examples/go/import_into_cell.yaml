@@ -1,15 +1,9 @@
 pattern_name: go/patterns/import_into_cell
 classes: 
-  transport: GO_0006810 
-  extracellular region: GO_0005576 
-  intracellular part: GO_0044424 
-  chemical entity: CHEBI_24431  # encompasses protein
-  macromolecular complex: GO_0043234  # encompasses protein complex
+  quality: PATO_0000001
 
 relations:
-  has target start location: RO_0002338
-  has target end location: RO_0002339
-  imports: RO_0002340
+  occurs in: BFO_0000066
     
 vars: 
   imported: "'chemical entity' or 'macromolecular complex'"
@@ -30,7 +24,7 @@ def:
     - imported
     
 equivalentTo: 
-  text: "'transport' and ('has target start location' some 'extracellular region') and ('has target end location' some 'intracellular part') and ('imports' some %s)"
+  text: "%s and 'occurs in' some %s"
   vars:
     - imported
     
