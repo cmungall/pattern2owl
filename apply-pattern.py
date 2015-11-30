@@ -13,6 +13,8 @@ import itertools
 import sys
 from collections import Counter
 
+gcif = None
+
 def main():
 
     parser = argparse.ArgumentParser(description='DOSDB'
@@ -27,20 +29,38 @@ def main():
                         help='URI base prefix')
     parser.add_argument('-p', '--pattern', type=str, required=False,
                         help='YAML Pattern file')
+    parser.add_argument('-P', '--prefixes', type=str, required=False,
+                        help='Prefix map file')
     parser.add_argument('-i', '--input', type=str, required=False,
                         help='Input file for values to be filled in template')
     parser.add_argument('-x', '--xpfiles', nargs='+', required=False,
                         help='Input file for values to be filled in template')
     parser.add_argument('-a', '--annotate', type=bool, required=False,
                         help='Annotate each generated class with template values')
+    parser.add_argument('-G', '--gci', type=str, required=False,
+                        help='Output file for GCI axioms not expressable in OMN')
     args = parser.parse_args()
+
+    prefixmap = {}
+    if args.prefixes:
+        f = open(args.prefixes, 'r')
+        prefixmap = yaml.load(f)
+        f.close()
 
     pattern_name = args.pattern
     f = open(args.pattern, 'r') 
     tobj = yaml.load(f)
     if 'pattern_name' not in tobj:
         tobj['pattern_name'] = pattern_name
-    
+
+    ontology_iri = args.base + args.name
+
+    global gcif
+    if args.gci:
+        gcif = open(args.gci, 'w')
+        gcif.write('Prefix(:=<%s>)\n' % args.base)
+        gcif.write('Ontology(<%s-gci>\n' % ontology_iri)
+        
     bindings_list = []
     if args.input:
         bindings_list = parse_bindings_list(args.input)
@@ -50,10 +70,13 @@ def main():
     print('Prefix: IAO: <http://purl.obolibrary.org/obo/IAO_>')
     print('Prefix: DOSDP: <http://geneontology.org/foo/>')
     print('Prefix: oio: <http://www.geneontology.org/formats/oboInOwl#>')
+    for (pfx,uri) in prefixmap.items():
+            print('Prefix: %s: <%s>' % (pfx,uri))
+    
     print()
     print(" ## Auto-generated")
     print()
-    print('Ontology: <%s%s>' % (args.base, args.name))
+    print('Ontology: <%s>' % ontology_iri)
     if 'imports' in tobj:
         for uri in tobj['imports']:
             print('  Import: <%s>' % uri)
@@ -88,7 +111,11 @@ def main():
         if 'iri' in bindings:
             cls_iri = bindings['iri']
         apply_pattern(tobj, qm, bindings, cls_iri, args)
-    
+
+    if gcif:
+        gcif.write(')')
+        gcif.close
+        
 def uuid_iri():
     return format('urn:uuid:%s' % str(uuid.uuid4()))
 
@@ -131,6 +158,8 @@ def get_values(tobj, bindings, isLabel=False):
         if isLabel:
             k = v+" label"
             varval = bindings[k] if k in bindings else bindings[v]
+            if varval == None:
+                varval = bindings[v]
         else:
             varval = render_iri(bindings[v])
         vals.append(varval)
@@ -152,15 +181,22 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
         var_bindings[v] = iri
         vl = v + " label"
         lbl = bindings[vl] if vl in bindings else ''
+        if not lbl:
+            lbl = iri
         print('Class: %s ## %s' % (iri,lbl))
 
     print("## "+str(json.dumps(var_bindings)))
-
+    
     print('Class: %s' % render_iri(cls_iri))
     if 'name' in p:
         tobj = p['name']
         text = apply_template(tobj, bindings, True)
-        write_annotation('rdfs:label', text, bindings)
+        ##TODO
+        if 'iri label' in bindings and bindings['iri label']:
+            write_annotation('rdfs:label', bindings['iri label'], bindings)
+            ## TODO: write syn. write_annotation('rdfs:label', text, bindings)
+        else:
+            write_annotation('rdfs:label', text, bindings)
     if 'def' in p:
         tobj = p['def']
         text = apply_template(tobj, bindings, True)
@@ -185,6 +221,12 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
         expr_cmt = apply_template(tobj, bindings,True).replace("\n", "")
         expr_text = replace_quoted_entities(qm, expr_text)
         print(' SubClassOf: %s ## %s' % (expr_text,expr_cmt))
+    if 'axioms' in p:
+        for tobj in p['axioms']:
+            expr_text = apply_template(tobj, bindings)
+            expr_cmt = apply_template(tobj, bindings,True).replace("\n", "")
+            expr_text = replace_quoted_entities(qm, expr_text)
+            gcif.write(' %s ## %s\n' % (expr_text,expr_cmt))
     if args.annotate:
         pn = p['pattern_name']
     
