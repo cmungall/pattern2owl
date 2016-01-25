@@ -59,6 +59,8 @@ def main():
     if args.gci:
         gcif = open(args.gci, 'w')
         gcif.write('Prefix(:=<%s>)\n' % args.base)
+        for (k,v) in prefixmap.items():
+            gcif.write('Prefix(%s:=<%s>)\n' % (k,v)) 
         gcif.write('Ontology(<%s-gci>\n' % ontology_iri)
         
     bindings_list = []
