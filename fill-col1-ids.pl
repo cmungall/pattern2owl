@@ -27,6 +27,8 @@ my %lenmap = ();
 
 
 foreach my $f (@files) {
+    print STDERR "T: $f\n";
+
     open(F,$f);
     while(<F>) {
         my ($id) = split(/[\t,]/,$_);
@@ -44,15 +46,18 @@ foreach my $f (@files) {
                 # ok
             }
             else {
-                die $id;
+                die "INVALID ID: $id in: $_ in $f";
             }
         }
     }
     close(F);
 }
 
+my %done=();
+my %done_in=();
 my $total=0;
 foreach my $f (@files) {
+    print STDERR "F: $f\n";
     open(F,$f);
     my @lines = <F>;
     close(F);
@@ -61,7 +66,16 @@ foreach my $f (@files) {
     
     open(F,">$f.tmp") || die "writing to $f";
     foreach (@lines) {
-        my ($id,$lbl) = split(/[\t,]/,$_);
+        my ($id,$lbl,@rest) = split(/[\t,]/,$_);
+        my $val = join(",",@rest);
+        if ($done{$val} && $id ne 'iri') {
+            print STDERR "DUPLICATION: ($id $f), ($done{$val} $done_in{$val}) => $val\n";
+            if (!$id) {
+                die "DUPE";
+            }
+        }
+        $done{$val} = $id;
+        $done_in{$val} = $f;
         if (!$id) {
             $n++;
             $id = next_id();
