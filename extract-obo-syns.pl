@@ -39,7 +39,7 @@ while(<>) {
         next if $syn =~ m@_@;   # skip weird stuff, e.g. grouped_by_chemistry in CHEBI
         next if $syn =~ m@\@\w+$@;   # skip lang tags
         $syn =~ s@\"@'@g;
-        $syn =~ s@\\@/@g;
+        $syn =~ s@\\@@g;
         push(@{$smap->{$id}},
              {
                  synonym => $syn,
