@@ -14,6 +14,8 @@ import sys
 from collections import Counter
 
 gcif = None
+synmap = {}
+titlemode = False
 
 def main():
 
@@ -37,10 +39,25 @@ def main():
                         help='Input file for values to be filled in template')
     parser.add_argument('-a', '--annotate', type=bool, required=False,
                         help='Annotate each generated class with template values')
+    parser.add_argument('-U', '--titlemode', type=bool, required=False,
+                        help='Auto-uppercasify (e.g. HPO)')
     parser.add_argument('-G', '--gci', type=str, required=False,
                         help='Output file for GCI axioms not expressable in OMN')
+    parser.add_argument('-s', '--suppress', nargs='+', required=False, default=[],
+                        help='Suppress annotations')
+    parser.add_argument('-S', '--synonym', type=str, required=False, default=[],
+                        help='json synonym files')
     args = parser.parse_args()
 
+    global titlemode
+    titlemode = args.titlemode
+
+    global synmap
+    if args.synonym:
+        f = open(args.synonym, 'r')
+        synmap = json.load(f)
+        f.close()
+    
     prefixmap = {}
     if args.prefixes:
         f = open(args.prefixes, 'r')
@@ -86,10 +103,12 @@ def main():
     for v in tobj['vars']:
         print('AnnotationProperty: %s' % make_internal_annotation_property(tobj, v))
     print('AnnotationProperty: %s' % get_applies_pattern_property())
+    print('AnnotationProperty: oio:hasRelatedSynonym')
     if 'annotations' in tobj:
         for aobj in tobj['annotations']:
             print('AnnotationProperty: %s' % aobj['property'])
-    
+
+        
 
     ##print('AnnotationProperty: %s' % make_internal_annotation_property(tobj['pattern_name']))
 
@@ -152,6 +171,32 @@ def parse_xp_files(fns):
             bindings_list.append(m)
     return bindings_list
 
+## Returns an array of length N,
+## where N is the same length as the number of vars in the template object
+## [ [v1syn1, v1syn2, ...], ..., [vNsyn1, vNsyn2, ...]
+def get_synonym_combos(tobj, bindings, synmap, label):
+    lvars = tobj['vars']
+    vals = []
+    for v in lvars:
+        syns = []
+        id = bindings[v]
+        lk = v+" label"
+        if lk in bindings:
+            syns.append(bindings[lk])
+        if id in synmap:
+            for s in synmap[id]:
+                syns.append(s['synonym'])
+        vals.append(syns)
+    combos = list(itertools.product(*vals))
+    textt = tobj['text']
+    texts = []
+    for combo in combos:
+        text = format(textt % combo)
+        if text != label:
+            texts.append( ('oio:hasRelatedSynonym', text) )
+    return texts
+
+
 def get_values(tobj, bindings, isLabel=False):
     lvars = tobj['vars']
     vals = []
@@ -178,7 +223,7 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
     var_bindings = {}
     for v in p['vars']:
         if v not in bindings:
-            sys.stderr.write(v+" not in bindings")
+            sys.stderr.write("variable "+v+" is specified in vars: but is not in bindings:\n")
         iri = bindings[v]
         var_bindings[v] = iri
         vl = v + " label"
@@ -190,15 +235,17 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
     print("## "+str(json.dumps(var_bindings)))
     
     print('Class: %s' % render_iri(cls_iri))
+    label = ""
     if 'name' in p:
         tobj = p['name']
         text = apply_template(tobj, bindings, True)
-        ##TODO
-        if 'iri label' in bindings and bindings['iri label']:
-            write_annotation('rdfs:label', bindings['iri label'], bindings)
-            ## TODO: write syn. write_annotation('rdfs:label', text, bindings)
-        else:
-            write_annotation('rdfs:label', text, bindings)
+        if 'label' not in args.suppress:
+            ##TODO
+            if 'iri label' in bindings and bindings['iri label']:
+                label = bindings['iri label']
+            else:
+                label = text
+            write_annotation('rdfs:label', label, bindings)
     if 'def' in p:
         tobj = p['def']
         text = apply_template(tobj, bindings, True)
@@ -229,6 +276,15 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
             expr_cmt = apply_template(tobj, bindings,True).replace("\n", "")
             expr_text = replace_quoted_entities(qm, expr_text)
             gcif.write(' %s ## %s\n' % (expr_text,expr_cmt))
+    if len(synmap.keys()) > 0:
+        if 'name' in p:
+            tobj = p['name']
+            texts = get_synonym_combos(tobj, bindings, synmap, label)
+            if len(texts) > 0:
+                print("  ## Auto-syns\n")
+                for (prop,text) in texts:
+                    write_annotation(prop, text, bindings)
+        
     if args.annotate:
         pn = p['pattern_name']
     
@@ -243,6 +299,10 @@ def make_internal_annotation_property(p, s):
     return p['pattern_name'] + "/"+s
 
 def write_annotation(ap, text, bindings={}):
+    if titlemode:
+        toks = text.split(" ")
+        toks[0] = toks[0].title()
+        text = " ".join(toks)
     if ap in bindings:
         # override
         if bindings[ap] != '':

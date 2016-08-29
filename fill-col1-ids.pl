@@ -117,7 +117,7 @@ sub add_id {
 sub next_id {
     my @pfxs = keys %pfxh;
     if (@pfxs > 1) {
-        die "@pfxs";
+        die "multiple prefixes: @pfxs";
     }
     my $prefix = shift @pfxs;
     my $frag = $minmap{$prefix};
