@@ -32,12 +32,16 @@ while(<>) {
             die $rest;
         }
         my @xrefs = split(/,\s*/,$xrefstr);
-        next if $type =~ m@smiles@i;
-        next if $type =~ m@inchi@i;
-        next if $type =~ m@formula@i;
-        next if $syn !~ m@[a-z]@;   # skip abbrevs and chem symbols
-        next if $syn =~ m@_@;   # skip weird stuff, e.g. grouped_by_chemistry in CHEBI
-        next if $syn =~ m@\@\w+$@;   # skip lang tags
+        if ($type =~ m@CURATED@) {
+        }
+        else {
+            next if $type =~ m@smiles@i;
+            next if $type =~ m@inchi@i;
+            next if $type =~ m@formula@i;
+            next if $syn !~ m@[a-z]@;   # skip abbrevs and chem symbols
+            next if $syn =~ m@_@;   # skip weird stuff, e.g. grouped_by_chemistry in CHEBI
+            next if $syn =~ m@\@\w+$@;   # skip lang tags
+        }
         $syn =~ s@\"@'@g;
         $syn =~ s@\\@@g;
         push(@{$smap->{$id}},
