@@ -80,7 +80,7 @@ def main():
         for aobj in tobj['annotations']:
             if 'property' in aobj:
                 warnings.warn("Updating deprecated key: property -> annotationProperty")
-                aobj['annotationProperty'] = aobj['property'])
+                aobj['annotationProperty'] = aobj['property']
 
     
     global gcif
