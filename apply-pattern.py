@@ -11,6 +11,7 @@ import uuid
 import csv
 import itertools
 import sys
+import warnings
 from collections import Counter
 
 gcif = None
@@ -72,6 +73,16 @@ def main():
 
     ontology_iri = args.base + args.name
 
+    # REPAIR
+    # See https://github.com/dosumis/dead_simple_owl_design_patterns/issues/26
+    # historically we have used 'property', but the schema now defined as 'annotationProperty'
+    if 'annotations' in tobj:
+        for aobj in tobj['annotations']:
+            if 'property' in aobj:
+                warnings.warn("Updating deprecated key: property -> annotationProperty")
+                aobj['annotationProperty'] = aobj['property'])
+
+    
     global gcif
     if args.gci:
         gcif = open(args.gci, 'w')
@@ -104,9 +115,11 @@ def main():
         print('AnnotationProperty: %s' % make_internal_annotation_property(tobj, v))
     print('AnnotationProperty: %s' % get_applies_pattern_property())
     print('AnnotationProperty: oio:hasRelatedSynonym')
+
+        
     if 'annotations' in tobj:
         for aobj in tobj['annotations']:
-            print('AnnotationProperty: %s' % aobj['property'])
+            print('AnnotationProperty: %s' % aobj['annotationProperty'])
 
         
 
@@ -254,7 +267,7 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
     if 'annotations' in p:
         tanns = p['annotations']
         for tobj in tanns:
-            ap = tobj['property']
+            ap = tobj['annotationProperty']
             text = apply_template(tobj, bindings, True)
             # todo: protect against special characters
             write_annotation(ap, text, bindings)
