@@ -30,9 +30,9 @@ my %pfxh = ();
 my %minmap = ();
 my %lenmap = ();
 
-
+my $n_uuids = 0;
 foreach my $f (@files) {
-    print STDERR "T: $f\n";
+    print STDERR "Pre-processing: $f\n";
 
     open(F,$f);
     while(<F>) {
@@ -50,6 +50,9 @@ foreach my $f (@files) {
             elsif ($id eq 'iri') {
                 # ok
             }
+            elsif (is_uuid($id)) {
+                $n_uuids++;
+            }
             else {
                 die "INVALID ID: $id in: $_ in $f";
             }
@@ -57,21 +60,26 @@ foreach my $f (@files) {
     }
     close(F);
 }
+if ($n_uuids) {
+    print STDERR " * UUIDS: $n_uuids\n\n"
+}
 
 my %done=();
 my %done_in=();
 my $total=0;
 foreach my $f (@files) {
-    print STDERR "F: $f\n";
+    print STDERR "Processing: $f\n";
     open(F,$f);
     my @lines = <F>;
     close(F);
 
     my $n=0;
-    
+
+    my $line_num = 0;
     open(F,">$f.tmp") || die "writing to $f";
     my $N_COLS;
     foreach (@lines) {
+        $line_num++;
         if (m@  @) {
             die "DOUBLE SPACE: $_";
         }
@@ -89,23 +97,21 @@ foreach my $f (@files) {
         if (grep {m@ \! @} @rest) {
             die "UH OH: $_";
         }
-        if ($done{$val} && $id ne 'iri') {
-            print STDERR "DUPLICATION: (ID:$id FILE:$f), ($done{$val} $done_in{$val}) => $val in: $_";
-            #if (!$id) {
-                if ($skip_dupes) {
-                    $n++;
-                    next;
-                }
-                else {
-                    die "DUPE";
-                }
-            #}
+
+        # first check for duplicated IDs (always fatal)
+        if ($done{$id} && $id ne 'iri' && $id) {
+            print STDERR "DUPLICATED ID: (ID:$id FILE:$f), ($done{$id} $done_in{$id}) => $val in: $_";
+            die "FATAL: Duplicated primary ID";
         }
-        if ($done{$id} && $id ne 'iri') {
-            print STDERR "DUPLICATED ID: (ID:$id FILE:$f), ($done{$val} $done_in{$val}) => $val in: $_";
+
+        # next check for duplicate slotval tuples
+        # (may be valid)
+        if ($done{$val} && $id ne 'iri') {
+            print STDERR "DUPLICATED SLOT VALS: (ID:$id FILE:$f), ($done{$val} $done_in{$val}) => $val in: $_";
             if ($skip_dupes) {
                 $n++;
-                next;
+                # don't actually skip
+                #next;
             }
             else {
                 die "DUPE";
@@ -113,9 +119,14 @@ foreach my $f (@files) {
         }
         $done{$val} = $id;
         $done{$id} = $val;
-        $done_in{$val} = $f;
-        if (!$id) {
+        $done_in{$val} = "$line_num: $f";
+        $done_in{$id} = "$line_num: $f";
+        if (!$id || is_uuid($id)) {
             $n++;
+            if (is_uuid($id)) {
+                # remove UUID
+                s@^[a-zA-Z0-9\-]+@@;
+            }
             $id = next_id();
             print STDERR "NEWID: $id $lbl\n";
             $_ = "$id$_";
@@ -137,13 +148,31 @@ foreach my $f (@files) {
 print STDERR "TOTAL CHANGED: $total\n";
 exit 0;
 
+sub is_uuid {
+    my $s = shift;
+    if ($s =~ m@^[0-9a-f\-]+$@ && $s =~ m@\-@) {
+        return 1;
+    }
+    else {
+        return 0;
+    }
+}
 
 sub add_id {
     my ($prefix,$frag) = @_;
+
+    if ($frag =~ m@a-z@i) {
+        warn "IGNORING: $prefix:$frag";
+        return;
+    }
+    
     #print STDERR "REGISTER: $prefix $frag\n";
     $pfxh{$prefix}++;
     my $len = length($frag);
     if ($len > $lenmap{$prefix}) {
+        if ($len > 7) {
+            warn "LEN: $len for $prefix in $frag";
+        }
         $lenmap{$prefix} = $len;
     }
     if (!$minmap{$prefix}) {

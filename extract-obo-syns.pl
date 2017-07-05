@@ -3,6 +3,9 @@ use strict;
 use JSON;
 my $id;
 my $smap = {};
+
+# THIS WILL BE REPLACED
+
 while(<>) {
     chomp;
     if (m@^id: (\S+)@) {
