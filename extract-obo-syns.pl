@@ -47,6 +47,7 @@ while(<>) {
         }
         $syn =~ s@\"@'@g;
         $syn =~ s@\\@@g;
+        $syn = filter_unicode($syn);
         push(@{$smap->{$id}},
              {
                  synonym => $syn,
@@ -58,3 +59,21 @@ while(<>) {
 }
 my $json = new JSON;
 print $json->pretty->encode( $smap ); 
+exit 0;
+
+sub filter_unicode {
+
+    $_ = shift @ARGV;
+    tr/\200-\377//d;
+    tr [\200-\377]
+        [\000-\177];   # see 'man perlop', section on tr/
+    # weird ascii characters should be excluded
+    tr/\0-\10//d;   # remove weird characters; ascii 0-8
+    # preserve \11 (9 - tab) and \12 (10-linefeed)
+    tr/\13\14//d;   # remove weird characters; 11,12
+    # preserve \15 (13 - carriage return)
+    tr/\16-\37//d;  # remove 14-31 (all rest before space)
+    tr/\177//d;     # remove DEL character
+    return $_;
+    
+}

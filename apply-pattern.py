@@ -55,8 +55,9 @@ def main():
 
     global synmap
     if args.synonym:
-        f = open(args.synonym, 'r')
+        f = open(args.synonym, 'r', encoding="ISO-8859-1")
         synmap = json.load(f)
+        #s = f.read()
         f.close()
     
     prefixmap = {}
