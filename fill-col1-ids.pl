@@ -47,7 +47,7 @@ foreach my $f (@files) {
             elsif ($id =~ m@^(\S+)_(\S+)@) {
                 add_id($1,$2);
             }
-            elsif ($id eq 'iri') {
+            elsif ($id eq 'iri' || $id eq 'defined') {
                 # ok
             }
             elsif (is_uuid($id)) {
@@ -99,14 +99,14 @@ foreach my $f (@files) {
         }
 
         # first check for duplicated IDs (always fatal)
-        if ($done{$id} && $id ne 'iri' && $id) {
+        if ($done{$id} && $id ne 'iri' && $id ne 'defined' && $id) {
             print STDERR "DUPLICATED ID: (ID:$id FILE:$f), ($done{$id} $done_in{$id}) => $val in: $_";
             die "FATAL: Duplicated primary ID";
         }
 
         # next check for duplicate slotval tuples
         # (may be valid)
-        if ($done{$val} && $id ne 'iri') {
+        if ($done{$val} && $id ne 'iri' && $id ne 'defined') {
             print STDERR "DUPLICATED SLOT VALS: (ID:$id FILE:$f), ($done{$val} $done_in{$val}) => $val in: $_";
             if ($skip_dupes) {
                 $n++;
