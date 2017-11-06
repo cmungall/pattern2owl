@@ -21,6 +21,7 @@ while(<>) {
              });
     }
     if (m@synonym: "(.*)" *(\w+) *(.*)@) {
+        my $line = $_;
         my ($syn, $scope, $rest) = ($1,$2,$3);
         my $type = 'default';
         my $xrefstr;
@@ -48,6 +49,9 @@ while(<>) {
         $syn =~ s@\"@'@g;
         $syn =~ s@\\@@g;
         $syn = filter_unicode($syn);
+        if (!$syn) {
+            die("No syn for $line");
+        }
         push(@{$smap->{$id}},
              {
                  synonym => $syn,
@@ -63,7 +67,7 @@ exit 0;
 
 sub filter_unicode {
 
-    $_ = shift @ARGV;
+    $_ = shift @_;
     tr/\200-\377//d;
     tr [\200-\377]
         [\000-\177];   # see 'man perlop', section on tr/
