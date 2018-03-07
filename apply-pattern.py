@@ -146,6 +146,8 @@ def main():
             cls_iri = apply_template(tobj['class_iri'], bindings)
         if 'iri' in bindings:
             cls_iri = bindings['iri']
+        elif 'defined_class' in bindings:
+            cls_iri = bindings['defined_class']
         apply_pattern(tobj, qm, bindings, cls_iri, args)
 
     if gcif:
@@ -258,6 +260,8 @@ def apply_pattern(p, qm, bindings, cls_iri, args):
             ##TODO
             if 'iri label' in bindings and bindings['iri label']:
                 label = bindings['iri label']
+            elif 'defined_class label' in bindings and bindings['defined_class label']:
+                label = bindings['defined_class label']
             else:
                 label = text
             write_annotation('rdfs:label', label, bindings)
